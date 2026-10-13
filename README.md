@@ -137,6 +137,33 @@ esptool.py --chip esp32 -p /dev/ttyACM0 -b 460800 write_flash \
 
 ---
 
+## 📸 Hardware & Web UI Gallery
+
+### Hardware Node Deployment
+<p align="center">
+  <img src="screenshots/front.jpg" alt="ESP32 Hardware Node" width="450"/>
+</p>
+
+### Mobile Management Interface
+<p align="center">
+  <img src="screenshots/IMG_5444.PNG" alt="Mobile Dashboard - Main Menu" width="300"/>
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="screenshots/IMG_5445.PNG" alt="Mobile Dashboard - Attack Modules" width="300"/>
+</p>
+
+### Desktop Control Panel & Research Dashboard
+<p align="center">
+  <img src="screenshots/Screenshot%202026-10-13%20141026.PNG" alt="Network Scanner View" width="750"/>
+</p>
+<p align="center">
+  <img src="screenshots/Screenshot%202026-10-13%20141435.PNG" alt="Attack Configuration Panel" width="750"/>
+</p>
+<p align="center">
+  <img src="screenshots/Screenshot%202026-10-13%20143104.PNG" alt="Active Attack Execution" width="750"/>
+</p>
+
+---
+
 ## 📜 Credits & Upstream Attribution
 - **Firmware Base:** Built upon [Hydra-ESP](https://github.com/SameerAlSahab/Hydra-ESP) by Sameer Al Sahab.
 - **Foundational Project:** [esp32-wifi-penetration-tool](https://github.com/risinek/esp32-wifi-penetration-tool) by risinek.
