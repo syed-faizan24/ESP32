@@ -1,249 +1,148 @@
-<table>
-<tr>
-<td width="160" align="center">
-<img src="resources/hydra_logo.png" alt="Hydra-ESP logo" width="140"/>
-</td>
-<td>
+# 📡 ESP32 Wireless Security Auditing Node: Build & Deployment Guide
 
-# Hydra-ESP
-**wifi + bt test tool for the ESP32**
+![Platform](https://img.shields.io/badge/Platform-ESP32-blue?logo=espressif)
+![Framework](https://img.shields.io/badge/Framework-ESP--IDF%20v5.1.2-red)
+![Language](https://img.shields.io/badge/Language-C%20%2F%20C%2B%2B-green?logo=c%2B%2B)
+![Architecture](https://img.shields.io/badge/Architecture-Xtensa%20Dual--Core%20%40%20240MHz-purple)
+![License](https://img.shields.io/badge/License-GPL--3.0-yellow)
 
-Built on top of [risinek's](https://github.com/risinek/esp32-wifi-penetration-tool) esp32-wifi-penetration-tool.   Extended with a redesigned web UI, multi-target deauth, BLE attacks, HID keystroke payloads, an aggressive Evil Twin module with password verification and Wi-Fi cloning, Ghost Probe, Wi-Fi beacon spam, Clientless PMKID Capture, WPA Handshake Capture, a deauth attack detector, optional OLED display support, and various security research modules.
-</td>
-</tr>
-</table>
-
-<p>
-<a href="https://github.com/SameerAlSahab/Hydra-ESP/actions/workflows/build_page.yml"><img src="https://img.shields.io/github/actions/workflow/status/SameerAlSahab/Hydra-ESP/build_page.yml?branch=main&style=flat-square&label=pages%20build" alt="pages build status"></a>
-<a href="https://github.com/SameerAlSahab/Hydra-ESP/stargazers"><img src="https://img.shields.io/github/stars/SameerAlSahab/Hydra-ESP?style=flat-square&label=stars" alt="stars"></a>
-<a href="https://github.com/SameerAlSahab/Hydra-ESP/network/members"><img src="https://img.shields.io/github/forks/SameerAlSahab/Hydra-ESP?style=flat-square&label=forks" alt="forks"></a>
-<a href="https://github.com/SameerAlSahab/Hydra-ESP/issues"><img src="https://img.shields.io/github/issues/SameerAlSahab/Hydra-ESP?style=flat-square&label=issues" alt="open issues"></a>
-<a href="https://github.com/SameerAlSahab/Hydra-ESP/pulls"><img src="https://img.shields.io/github/issues-pr/SameerAlSahab/Hydra-ESP?style=flat-square&label=PRs" alt="open PRs"></a>
-<a href="https://github.com/SameerAlSahab/Hydra-ESP/commits/main"><img src="https://img.shields.io/github/last-commit/SameerAlSahab/Hydra-ESP?style=flat-square" alt="last commit"></a>
-<a href="LICENSE"><img src="https://img.shields.io/github/license/SameerAlSahab/Hydra-ESP?style=flat-square&label=license" alt="license"></a>
-<a href="https://github.com/SameerAlSahab/Hydra-ESP/graphs/contributors"><img src="https://img.shields.io/github/contributors/SameerAlSahab/Hydra-ESP?style=flat-square" alt="contributors"></a>
-<a href="https://github.com/SameerAlSahab/Hydra-ESP/discussions"><img src="https://img.shields.io/github/discussions/SameerAlSahab/Hydra-ESP?style=flat-square" alt="discussions"></a>
-</p>
+An end-to-end laboratory and engineering guide detailing how to build, partition, and flash bare-metal wireless auditing firmware (**Hydra-ESP**) onto an ESP32 microcontroller using Espressif's native **ESP-IDF v5.1** cross-compilation toolchain on Linux.
 
 ---
 
-## Demo videos
+## 🏗️ System Architecture & Deployment Workflow
 
-<table>
-<tr>
-<td width="50%" align="center">
-<a href="https://www.youtube.com/watch?v=91EigDhE2SE&t=22s">
-<img src="https://img.youtube.com/vi/91EigDhE2SE/hqdefault.jpg" width="100%" alt="Hydra-ESP v1 demo"/>
-</a>
-<br/>
-<b>v1 (old, fewer features)</b> — 62K+ genuine views (as of Sept 2026)
-</td>
-<td width="50%" align="center">
-<a href="https://youtu.be/6GDkQS9YzEI">
-<img src="https://img.youtube.com/vi/6GDkQS9YzEI/hqdefault.jpg" width="100%" alt="Hydra-ESP v2 demo"/>
-</a>
-<br/>
-<b>v2 (new, current build)</b> — 13K+ views (idk why less lol, maybe yt skill issues)
-</td>
-</tr>
-</table>
+```mermaid
+flowchart TD
+    subgraph Host["Linux Development Host"]
+        A["Source Code (C/C++)"] --> B["ESP-IDF Toolchain (CMake/GCC 12.2.0)"]
+        C["Web Assets (/data)"] --> D["SPIFFS Image Generator"]
+        B --> E["projecthydra-32.bin (1.2 MB)"]
+        D --> F["storage.bin (448 KB)"]
+    end
 
----
+    subgraph Flashing["Serial Deployment (esptool.py @ 460800 baud)"]
+        E --> G["ESP32 Flash Memory"]
+        F --> G
+    end
 
-## Hardware
-
-**Required**
-
-- ESP32 DevKit V1, or any board built on the same ESP32 (Xtensa LX6 dual-core) SoC. Dev + tested on the standard 38-pin DevKit V1. WROOM-32 / WROVER modules should work fine too. S2, C3, and other variants are **not** supported, they run different radio hardware.
-
-- S3 is supported. Check S3 Branch. No longer maintained. Maybe you can!!
-
-**Optional**
-
-- SSD1306 OLED (128x64, I2C). Shows attack timers, current status, menu, captured Evil Twin passwords, and logs. Auto-detected on boot — if it's not there, it just skips init quietly and you still get everything through the web UI.
+    subgraph Memory["ESP32 4MB Flash Layout"]
+        G --> H["0x1000: Bootloader (26 KB)"]
+        G --> I["0x8000: Partition Table (3 KB)"]
+        G --> J["0x10000: App Firmware (1.2 MB)"]
+        G --> K["0x190000: SPIFFS Web UI (448 KB)"]
+    end
+```
 
 ---
 
-## How it works
-
-ESP32 boots up its own management AP. Connect your phone/laptop to it and open `http://192.168.4.1`. UI is served straight off SPIFFS on the device — scan networks, pick a target, run attacks, watch deauth activity, change creds.
-
-Some attacks (Deauth, Evil Twin, Super Clone) need the radio to themselves, so the management AP drops while they're running — you lose the web UI connection for the duration. Set a timeout and it comes back on its own; without one you'll need to power cycle to stop the attack and get access back.
-
----
-
-## Dependencies
-
-| Library | License |
-|---|---|
-| [u8g2-hal-esp-idf](https://github.com/mkfrey/u8g2-hal-esp-idf) | See repo |
-| [ESP32-BLE-Keyboard](https://github.com/T-vK/ESP32-BLE-Keyboard) | See repo |
-| [u8g2](https://github.com/olikraus/u8g2) | BSD 2-Clause |
-| [esp-nimble-cpp](https://github.com/h2zero/esp-nimble-cpp) | Apache 2.0 |
+## 🛠️ Hardware Specifications
+- **Microcontroller:** ESP32 DevKit V1 (ESP32-D0WD-V3, revision v3.1)
+- **CPU:** Xtensa 32-bit LX6 Dual-Core @ 240MHz
+- **Memory:** 520 KB SRAM, 4 MB External Flash
+- **Radios:** 802.11 b/g/n Wi-Fi (2.4 GHz) + Bluetooth 4.2 / BLE (NimBLE stack)
+- **Serial Interface:** `/dev/ttyACM0` / `/dev/ttyUSB0` via USB-UART
 
 ---
 
-## Attacks
+## 💾 Memory Layout & Flash Partitioning
 
-### Deauthentication
-Picked from the "Deauth" button in the Attack tab. Sends raw 802.11 deauth frames to boot clients off a target AP. Up to 16 targets at once. Devices with 802.11w (MFP) enabled can resist plain frame-injection deauth — that's what BSSID Clone mode below is for.
+The firmware requires a custom partition layout defined in `partitions.csv` to accommodate both the core firmware logic and an embedded **SPIFFS** (SPI Flash File System) partition holding the web control panel:
 
-**Modes (pick one from the Attack Method dropdown):**
-- **Normal Deauth** — plain 802.11 deauth frames, the classic method.
-- **Combined Deauth** — deauth + disassociation frames sent together, harder to ignore for some clients.
-- **Multi-Clone Deauth** — runs the attack across several cloned identities at once instead of one.
-- **BSSID Clone (Aggressive)** — clones the target's SSID *and* BSSID onto the ESP32 on the same channel, so the real AP and the clone look identical. The address clash boots clients off on its own, and it still works on 802.11w/MFP devices since it's not sending raw unprotected deauth frames at all.
-
-**Timeout (optional):** default 2 minutes, but turn the timeout checkbox off and the attack runs forever — you'll need to power cycle the ESP32 to get the management AP back.
+| Partition | Type | SubType | Flash Offset | Size | Purpose |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **`nvs`** | `data` | `nvs` | `0x9000` | 24 KB | Non-Volatile Storage (WiFi creds, persistent settings) |
+| **`phy_init`** | `data` | `phy` | `0xf000` | 4 KB | Radio physical calibration data |
+| **`factory`** | `app` | `factory` | `0x10000` | 1.5 MB | Main application binary (`projecthydra-32.bin`) |
+| **`storage`** | `data` | `spiffs` | `0x190000` | 448 KB | Asynchronous Web UI assets (HTML, CSS, JS) |
 
 ---
 
-### WPA Handshake Capture
-Forces reconnects with deauth frames, captures the resulting WPA2 4-way handshake, saves it as `.pcap` and `.hccapx` for offline auditing with Hashcat / aircrack-ng against a wordlist. Needs a connected client on the target network. Runs until it gets a handshake or you stop it.
+## 🚀 Step-by-Step Configuration & Embedding Guide
 
-**Modes:** Normal Deauth / BSSID Clone (Aggressive) / Silent Capture (just listens, doesn't force a reconnect — needs a client to reconnect naturally).
-
----
-
-### Clientless PMKID Capture
-Grabs the PMKID off the first EAPOL-Key frame during association — no connected client needed, the AP just has to be in range. No mode to pick here, it's a single fixed method. Works with Hashcat hash mode 22000. Most modern WPA2 APs leak this, some don't include it at all.
-
----
-
-### Beacon Spam
-Floods the area with fake 802.11 beacon frames. 1–100 fake networks, configurable. Default timeout 5 minutes.
-
-**Modes:**
-- **Common Names** — everyday SSIDs like "Home WiFi", "TP-Link", etc, blends in with normal noise.
-- **Random Strings** — gibberish SSIDs, obviously fake, good for just flooding the scan list.
-- **Rick Roll Mode** — you can guess.
-- **Security Names** — SSIDs styled to look like security/surveillance gear, mostly for messing with a scan list.
-
----
-
-### Ghost Mode (Probe Request Spam)
-Listens for probe requests devices send out for their saved networks, grabs the SSIDs, then starts advertising those exact names back. Devices try to connect to the ESP32 instead of their real saved network. No mode/method to configure — just target-less and timeout, default 5 minutes.
-
----
-
-### Evil Twin
-Called "Devil Twin" in the UI. Spins up an open clone of the target AP (same SSID, no password) and starts deauthing the real one at the same time to push clients off it. Runs its own DNS server so every request from a connected client gets redirected to a captive portal ("firmware update" style page) asking for the Wi-Fi password.
-
-Whatever password gets submitted isn't just logged blind — the firmware actually tries connecting to the *real* AP with it to confirm it's correct. Wrong password → it's logged as a failed attempt and the victim gets sent back to the portal. Right password → captured, verified, and shown in the web UI. Default timeout 5 minutes, and the web UI is unreachable while it's running — power cycle to stop early if no timeout is set.
-
----
-
-### Super Clone
-This is the "SSID Cloner" — spins up multiple APs sharing (near-)identical SSIDs by padding the real name with spaces, so a scan list shows what looks like several copies of the same network. Only one method: "Open Multiple Clones". Default timeout 5 minutes.
-
----
-
-### BLE Spam
-Broadcasts BLE advertisement packets mimicking Apple/Samsung/Google proximity pairing signals — iPhones, iPads, Android devices pop up pairing prompts for nearby "devices". Default timeout 15 minutes, MAC address rotates on every run.
-
-**25 selectable modes**, grouped as:
-- **Apple Audio (8 modes)** — AirPods/AirPods Pro/AirPods Max/Beats style pairing popups.
-- **Apple Setup (5 modes)** — Apple TV, HomePod, Vision Pro style setup prompts.
-- **Samsung (6 modes)** — Galaxy Buds variants 1–5, plus a Samsung Random mode.
-- **Google (5 modes)** — Fast Pair variants 1–4, plus a Google Random mode.
-- **Mixed Random (1 mode)** — picks randomly across all of the above.
-
----
-
-### BT Payload
-Advertises the ESP32 as a Bluetooth HID keyboard under a random name (`HydraBT-XXXX`) with a randomised MAC, generated fresh every run. Once something pairs with it, it types out one of a few payloads. Mostly aimed at Windows — pair from Android with an app like nRF Connect.
-
-**Built-in payloads (pick from the Attack tab once connected):**
-- **Write to Notepad** — opens Notepad, types a short message. The "hello world" of this feature.
-- **Play Rick Roll (YouTube)** — opens the default browser to a YouTube link.
-- **Set Warning Wallpaper** — downloads an image and sets it as desktop wallpaper. May need a restart to fully apply, and the target needs to be online to pull the image.
-- **Grab Wi-Fi Passwords** — reads saved Wi-Fi profiles off the machine and sends them back over HTTP to the ESP32's own log endpoint (or a custom remote URL / RequestBin if you set one in the UI).
-- **Hydra God Mode** — runs the bundled prank script (wallpaper swap + sound).
-
-All five payloads live in [`bt_payload_attack.cpp`](https://github.com/SameerAlSahab/Hydra-ESP/blob/main/main/bt/bt_payload_attack.cpp) as small keystroke-injection functions (`do_notepad_sequence`, `do_payload_2` .. `do_payload_5`), wired into a switch statement in `execute_current_payload()`. Adding your own payload is basically: write a new `do_payload_N` function that presses/releases keys through `s_keyboard`, add a `case N:` for it in that switch, and add a button for it in the web UI (`data/index.html` + `data/app.js`, same pattern as the existing five). Standalone scripts the payloads fetch and run (like the two `.ps1` files already there) live in [`/payloads`](https://github.com/SameerAlSahab/Hydra-ESP/tree/main/payloads) in the repo root — that's the place to drop new `.ps1` scripts or other files a payload needs to pull down. PRs adding new payloads or payload files are welcome, see [CONTRIBUTING.md](CONTRIBUTING.md).
-
----
-
-### Deauth Attack Detector
-Puts the radio into promiscuous 802.11 monitor mode and watches raw management frames. Flags anything with 10+ deauth frames from one BSSID inside a second — the usual signature of a deauth attack — and also flags broadcast deauth (`00:00:00:00:00:00` source). Shows up live in a log table on the web UI.
-
----
-
-## Web interface
-
-Live at `http://192.168.4.1` once you're on the device's AP.
-
-- **Scan** — nearby networks, SSID/BSSID/signal. Tap a row to target it.
-- **Attack** — pick and launch any attack above, see live status/timer/results.
-- **Detector** — start/stop the deauth monitor, view the alert log.
-- **Settings** — change management AP SSID/password (reboots on save).
-- **About** — firmware version, credits, legal notice.
-
----
-
-## Default credentials
-
-| Field    | Default       |
-|----------|---------------|
-| SSID     | `hydra`       |
-| Password | `notforfun`   |
-| Web UI   | `192.168.4.1` |
-
-Change these from Settings — they're saved to NVS flash and survive reboots.
-
----
-
-## Building it yourself
-
-Needs [ESP-IDF](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/get-started/index.html) set up (this was built/tested against the standard ESP32 target).
+### 1. Prerequisites & ESP-IDF v5.1 Installation
+Install prerequisite build packages and clone the ESP-IDF v5.1.2 framework:
 
 ```bash
-git clone https://github.com/SameerAlSahab/Hydra-ESP.git
-cd Hydra-ESP
-idf.py set-target esp32
+# Clone ESP-IDF v5.1.2 with submodules
+mkdir -p ~/esp && cd ~/esp
+git clone -b v5.1.2 --recursive https://github.com/espressif/esp-idf.git
+
+# Install tools for ESP32 target
+cd ~/esp/esp-idf
+./install.sh esp32
+
+# Activate environment in current terminal
+. ./export.sh
+```
+
+### 2. Configure Build Defaults
+To ensure that target reconfiguration doesn't overwrite your custom partition scheme with generic single-app templates, ensure `sdkconfig.defaults` includes:
+
+```ini
+CONFIG_ESP32_WIFI_NVS_ENABLED=n
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+CONFIG_PARTITION_TABLE_FILENAME="partitions.csv"
+```
+
+### 3. Compile the Firmware & SPIFFS Image
+Compile all components and automatically package the `/data` folder into the SPIFFS `storage.bin` image:
+
+```bash
+cd /home/kim/Downloads/Hydra-ESP
 idf.py build
-idf.py -p /dev/ttyUSB0 flash monitor
 ```
 
-Web UI assets in `data/` get flashed to SPIFFS separately — check the `partitions.csv` layout and use your IDF version's SPIFFS flashing step.
+### 4. Embed / Flash the Firmware into ESP32
+Connect your board via USB and flash the bootloader, partition table, application, and SPIFFS volume in a single pass:
 
----
+```bash
+idf.py -p /dev/ttyACM0 flash
+```
 
-## Credits
-
-| Role | Name |
-|---|---|
-| Lead Developer | Sameer Al Sahab |
-| Original Codebase | [risinek](https://github.com/risinek/esp32-wifi-penetration-tool) |
-| Inspiration | [spacehuhn](https://github.com/SpacehuhnTech/esp8266_deauther) |
-| BLE Spam Code | [justcallmekoko and ckcr4lyf](https://github.com/ckcr4lyf/EvilAppleJuice-ESP32) |
-
----
-
-## Citation
-
-There's a paper alongside this repo (`paper/hydra_esp_paper.pdf`) walking through the 802.11/BLE background for everything above — how each attack actually works at the protocol level, and the countermeasures that fix the root cause (802.11w, WPA3-SAE, rogue-AP detection, tighter BT pairing). If you're citing the firmware or the paper, use the `CITATION.cff` in this repo (GitHub's "Cite this repository" button picks it up automatically), or the BibTeX below:
-
-```bibtex
-@article{alsahab2026hydraesp,
-  author  = {Al Sahab, Sameer},
-  title   = {Low-Cost IEEE 802.11 and Bluetooth Attack Surfaces on Commodity Microcontrollers: A Case Study of the ESP32 Platform},
-  year    = {2026},
-  url     = {https://github.com/SameerAlSahab/Hydra-ESP/blob/main/paper/hydra_esp_paper.pdf},
-  note    = {Firmware and paper available in this repository.}
-}
+*Or manually using `esptool.py`:*
+```bash
+esptool.py --chip esp32 -p /dev/ttyACM0 -b 460800 write_flash \
+    0x1000 build/bootloader/bootloader.bin \
+    0x8000 build/partition_table/partition-table.bin \
+    0x10000 build/projecthydra-32.bin \
+    0x190000 build/storage.bin
 ```
 
 ---
 
-## Contributing
+## 🔍 Verification & Operation
 
-Got a bug, an idea, or a module you want to add? Check [CONTRIBUTING.md](CONTRIBUTING.md). Questions, ideas, "does this work on X board" type stuff — that goes in [Discussions](https://github.com/SameerAlSahab/Hydra-ESP/discussions), not Issues.
+1. **Verify Boot Output:**
+   ```bash
+   idf.py -p /dev/ttyACM0 monitor
+   ```
+   *(Press `Ctrl + ]` to exit).*
+
+2. **Access Web Control Panel:**
+   - Connect to the Wi-Fi AP: `hydra` (Password: `notforfun`)
+   - Navigate to: `http://192.168.4.1`
 
 ---
 
-## Legal
+## 🛡️ Security Capabilities (Lab Environment)
 
-Educational security research tool. Only run this against networks/devices you own or have explicit written permission to test. Unauthorised use is illegal under the Computer Fraud and Abuse Act (US), Computer Misuse Act (UK), IT Act 2000 (Bangladesh/India), and equivalent laws pretty much everywhere else.
+- **802.11 Deauthentication Auditing:** Evaluates 802.11w Protected Management Frame (PMF) compliance across 4 modes (Normal, Combined, Multi-Clone, and aggressive BSSID clash).
+- **Rogue AP & Evil Twin Simulation:** Deploys captive portal clones with active credential validation against the legitimate network to test user security awareness.
+- **WPA/WPA2 Handshake & PMKID Capture:** Gathers 4-way EAPOL handshakes and clientless PMKIDs for offline dictionary resilience testing.
+- **BLE Proximity Stress-Testing:** Broadcasts proximity pairing advertisements across Apple, Samsung, and Google ecosystems via the lightweight NimBLE stack.
+- **Bluetooth Keystroke Injection (HID):** Emulates a wireless human interface device to assess automated script exposure on unlocked systems.
+- **Promiscuous Frame Intrusion Detection:** Monitors management frame thresholds (>10 deauths/sec) to alert defenders to nearby radio jamming attempts.
 
-Authors accept no liability for misuse. Whatever you do with it is on you.
+---
+
+## 📜 Credits & Upstream Attribution
+- **Firmware Base:** Built upon [Hydra-ESP](https://github.com/SameerAlSahab/Hydra-ESP) by Sameer Al Sahab.
+- **Foundational Project:** [esp32-wifi-penetration-tool](https://github.com/risinek/esp32-wifi-penetration-tool) by risinek.
+- **Research Reference:** SpacehuhnTech (esp8266_deauther) & EvilAppleJuice.
+
+---
+
+## ⚠️ Legal & Ethical Disclaimer
+This project is strictly for authorized laboratory security testing, educational research, and defense assessment on equipment owned by the operator.
